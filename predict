@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+# predict CIMP status from gene expression data
+if [ "$1" == "-h" ] ; then
+    echo -e "Predict CIMP status from gene expression in FPKM format
+Usage: `basename $0` -i <dirIn> -o <dirOut> -f <file> -k <key> -c <cov>
+    <dirIn>: input directory
+    <dirOut>: output directory
+    <file>: input files, format ENSG\FPKM
+    <key>: key for CIMP(+) expression thresholds; default file at /home/dtam/CIMPkey
+    <threshold>: cutoff for number of genes with increased expression before CIMP is (+); default is 3 "
+    exit 0
+fi
+
+key=/home/dtam/CIMPkey
+threshold=3
+
+while [[ $# -gt 0 ]]
+do
+    case "$1" in
+        -i) dirIn="$2"; shift;;
+        -o) dirOut="$2"; shift;;
+        -f) file="$2"; shift;;
+        -k) key="$2"; shift;;
+        -t) threshold="$2"; shift;;
+    esac
+    shift
+done
+
+mkdir -p $dirOut
+echo "CIMPpos" > $dirOut/list_CIMPpos
+echo "CIMPneg" > $dirOut/list_CIMPneg
+
+# for every file...
+for file in $dirIn/$file; do
+  noPosExp=0
+
+  # for every key-value pair in the threshold file...
+  while read line; do
+    # read ENSG being searched for and its threshold for (+) from keyfile
+    currSearch="$(echo "$line" | cut -f1)"
+	echo $currSearch
+    currCutoff="$(echo "$line" | cut -f2)"
+	echo $currCutoff
+
+    # find matching ENSG in query file and store its expression
+    queryValue="$(grep -w $currSearch $file | cut -f2)"
+	echo $queryValue
+
+    # determine if expression meets threshold for (+) from keyfile
+	echo "! $queryValue < $currCutoff"
+    if [[ ! $queryValue < $currCutoff ]] ; then
+      (( noPosExp++ ))
+    fi
+
+  done < $key
+
+  echo $noPosExp
+
+  # after all expression data is assessed for above/below cutoff, determine if sample is (+)
+  #   >> output is written into two files
+  if [[ ! $noPosExp < $threshold ]] ; then
+	  echo "$(basename $file)" >> $dirOut/list_CIMPpos
+  else
+    echo "$(basename $file)" >> $dirOut/list_CIMPneg
+  fi
+
+done
+
+# +INPUT
+# <== input1 ==> is negative
+# ENSG01	0.2
+# ENSG02	0.7
+# ENSG03	0.3
+
+# <== input2 ==> is positive
+# ENSG01	0.5
+# ENSG02	0.8
+# ENSG03	0.9
+
+# ----------
+
+# +OUTPUT
+# <== list_CIMPpos ==>
+# input2
+
+# <== list_CIMPneg ==>
+# input1
+
+# ----------
+
+# +KEY
+# ENSG01	0.5
+# ENSG02	0.6
+# ENSG03	0.7
