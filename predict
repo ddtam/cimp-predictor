@@ -6,8 +6,8 @@ if [ "$1" == "-h" ] ; then
 	Usage: `basename $0` -i <dirIn> -o <dirOut> -f <file> -k <key> -c <cov>
 	<dirIn>: input directory
 	<dirOut>: output directory
-	<file>: file containing names of input files; can also be a RegEx. Actual inputs should be in format 'ENSG\FPKM'
-	<key>: key for CIMP(+) expression thresholds; default file at /home/dtam/CIMPkey
+	<file>: file containing names of input files; can also be a RegEx; actual inputs should be in format 'ENSG\FPKM'
+	<key>: key for CIMP(+) expression thresholds; default file at /home/dtam/CIMPkey; format is 'ENSG\gtOrlt\cutoff'
 	<threshold>: cutoff for number of genes with increased expression before CIMP is (+); default is 3 "
 	exit 0
 fi
@@ -41,14 +41,25 @@ do
 		while read line; do
 			# read ENSG being searched for and its threshold for (+) from keyfile
 			currSearch="$(echo "$line" | cut -f1)"
-			currCutoff="$(echo "$line" | cut -f2)"
+			currGtLt="$(echo "$line" | cut -f2)"
+			currCutoff="$(echo "$line" | cut -f3)"
 
 			# find matching ENSG in query file and store its expression
 			queryValue="$(grep -w $currSearch $sample | cut -f2)"
 
-			# determine if expression meets threshold for (+) from keyfile
-			if [[ ! $queryValue < $currCutoff ]] ; then
-				(( noPosExp++ ))
+			# if query is present...
+			if [[ $queryValue != "" ]]; then
+				# determine if expression meets greater-than threshold for (+) from keyfile
+				if [[ $currGtLt == "gt" ]]; then
+					if [[ ! $queryValue < $currCutoff ]] ; then
+						(( noPosExp++ ))
+					fi
+				# ...or determine if expression meets less-than threshold for (+) from keyfile
+				elif [[ $currGtLt == "lt" ]]; then
+					if [[ ! $queryValue > $currCutoff ]]; then
+						(( noPosExp++ ))
+					fi
+				fi
 			fi
 
 		done < $key
@@ -56,37 +67,53 @@ do
 		# after all expression data is assessed for above/below cutoff, determine if sample is (+)
 		#   >> output is written into two files
 		if [[ ! $noPosExp < $threshold ]] ; then
-			echo "$(basename $sample)" >> $dirOut/list_CIMPpos
+			echo "$(basename $sample)" $noPosExp >> $dirOut/list_CIMPpos
 		else
-			echo "$(basename $sample)" >> $dirOut/list_CIMPneg
+			echo "$(basename $sample)" $noPosExp >> $dirOut/list_CIMPneg
 		fi
 
 	done
 done < $file
 
 # +INPUT
-# <== input1 ==> is negative
+# <== input1 ==> is negative by GT
 # ENSG01	0.2
 # ENSG02	0.7
 # ENSG03	0.3
 
-# <== input2 ==> is positive
+# <== input2 ==> is positive by GT
 # ENSG01	0.5
 # ENSG02	0.8
 # ENSG03	0.9
 
+# <== input3 ==> is negative by LT
+# ENSG04	0.3
+# ENSG05	0.2
+# ENSG06	0.1
+
+# <== input4 ==> is positive by LT
+# ENSG04	0.1
+# ENSG05	0.2
+# ENSG06	0.05
+
 # ----------
+# test with $ predict -i testFiles -o ./  -f "*" -k testFiles/key
 
 # +OUTPUT
 # <== list_CIMPpos ==>
 # input2
+# input4
 
 # <== list_CIMPneg ==>
 # input1
+# input3
 
 # ----------
 
 # +KEY
-# ENSG01	0.5
-# ENSG02	0.6
-# ENSG03	0.7
+# ENSG01	gt	0.5
+# ENSG02	gt	0.6
+# ENSG03	gt	0.7
+# ENSG04	lt	0.2
+# ENSG05	lt	0.2
+# ENSG06	lt	0.1
