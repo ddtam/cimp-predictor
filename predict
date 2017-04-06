@@ -6,7 +6,7 @@ if [ "$1" == "-h" ] ; then
 	Usage: `basename $0` -i <dirIn> -o <dirOut> -f <file> -k <key> -c <cov>
 	<dirIn>: input directory
 	<dirOut>: output directory
-	<file>: input files, format ENSG\FPKM
+	<file>: file containing names of input files; can also be a RegEx. Actual inputs should be in format 'ENSG\FPKM'
 	<key>: key for CIMP(+) expression thresholds; default file at /home/dtam/CIMPkey
 	<threshold>: cutoff for number of genes with increased expression before CIMP is (+); default is 3 "
 	exit 0
@@ -32,34 +32,37 @@ echo "CIMPpos" > $dirOut/list_CIMPpos
 echo "CIMPneg" > $dirOut/list_CIMPneg
 
 # for every file...
-for file in $dirIn/$file; do
-	noPosExp=0
+while read line
+do
+	for sample in $dirIn/$line; do
+		noPosExp=0
 
-	# for every key-value pair in the threshold file...
-	while read line; do
-		# read ENSG being searched for and its threshold for (+) from keyfile
-		currSearch="$(echo "$line" | cut -f1)"
-		currCutoff="$(echo "$line" | cut -f2)"
+		# for every key-value pair in the threshold file...
+		while read line; do
+			# read ENSG being searched for and its threshold for (+) from keyfile
+			currSearch="$(echo "$line" | cut -f1)"
+			currCutoff="$(echo "$line" | cut -f2)"
 
-		# find matching ENSG in query file and store its expression
-		queryValue="$(grep -w $currSearch $file | cut -f2)"
+			# find matching ENSG in query file and store its expression
+			queryValue="$(grep -w $currSearch $sample | cut -f2)"
 
-		# determine if expression meets threshold for (+) from keyfile
-		if [[ ! $queryValue < $currCutoff ]] ; then
-			(( noPosExp++ ))
+			# determine if expression meets threshold for (+) from keyfile
+			if [[ ! $queryValue < $currCutoff ]] ; then
+				(( noPosExp++ ))
+			fi
+
+		done < $key
+
+		# after all expression data is assessed for above/below cutoff, determine if sample is (+)
+		#   >> output is written into two files
+		if [[ ! $noPosExp < $threshold ]] ; then
+			echo "$(basename $sample)" >> $dirOut/list_CIMPpos
+		else
+			echo "$(basename $sample)" >> $dirOut/list_CIMPneg
 		fi
 
-	done < $key
-
-	# after all expression data is assessed for above/below cutoff, determine if sample is (+)
-	#   >> output is written into two files
-	if [[ ! $noPosExp < $threshold ]] ; then
-		echo "$(basename $file)" >> $dirOut/list_CIMPpos
-	else
-		echo "$(basename $file)" >> $dirOut/list_CIMPneg
-	fi
-
-done
+	done
+done < $file
 
 # +INPUT
 # <== input1 ==> is negative
