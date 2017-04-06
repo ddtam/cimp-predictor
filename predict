@@ -3,11 +3,11 @@
 # predict CIMP status from gene expression data
 if [ "$1" == "-h" ] ; then
 	echo -e "Predict CIMP status from gene expression in FPKM format
-	Usage: `basename $0` -i <dirIn> -o <dirOut> -f <file> -k <key> -c <cov>
+	Usage: `basename $0` -i <dirIn> -o <dirOut> -f <file> -k <key> -t <threshold>
 	<dirIn>: input directory
 	<dirOut>: output directory
-	<file>: file containing names of input files; can also be a RegEx; actual inputs should be in format 'ENSG\FPKM'
-	<key>: key for CIMP(+) expression thresholds; default file at /home/dtam/CIMPkey; format is 'ENSG\gtOrlt\cutoff'
+	<file>: file containing names of input files; input files themselves should be in format 'ENSG \ FPKM'
+	<key>: key for CIMP(+) expression thresholds; default file at /home/dtam/CIMPkey; format is 'ENSG \ gtOrlt \ cutoff'
 	<threshold>: cutoff for number of genes with increased expression before CIMP is (+); default is 3 "
 	exit 0
 fi
@@ -45,7 +45,7 @@ do
 			currCutoff="$(echo "$line" | cut -f3)"
 
 			# find matching ENSG in query file and store its expression
-			queryValue="$(grep -w $currSearch $sample | cut -f2)"
+			queryValue="$(grep -w "$currSearch" "$sample" | cut -f2)"
 
 			# if query is present...
 			if [[ $queryValue != "" ]]; then
