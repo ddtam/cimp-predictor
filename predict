@@ -34,11 +34,14 @@ echo "CIMPneg" > $dirOut/list_CIMPneg
 # for every file...
 while read line
 do
-	for sample in $dirIn/$line; do
-		noPosExp=0
+	for sample in $dirIn/$line
+	do
+		noIncrExp=0
+		noDecrExp=0
 
 		# for every key-value pair in the threshold file...
-		while read line; do
+		while read line
+		do
 			# read ENSG being searched for and its threshold for (+) from keyfile
 			currSearch="$(echo "$line" | cut -f1)"
 			currGtLt="$(echo "$line" | cut -f2)"
@@ -48,16 +51,21 @@ do
 			queryValue="$(grep -w "$currSearch" "$sample" | cut -f2)"
 
 			# if query is present...
-			if [[ $queryValue != "" ]]; then
+			if [[ $queryValue != "" ]]
+			then
 				# determine if expression meets greater-than threshold for (+) from keyfile
-				if [[ $currGtLt == "gt" ]]; then
-					if [[ ! $queryValue < $currCutoff ]] ; then
-						(( noPosExp++ ))
+				if [[ $currGtLt == "gt" ]]
+				then
+					if (( $(bc <<< "$queryValue >= $currCutoff") ))
+					then
+						(( noIncrExp++ ))
 					fi
 				# ...or determine if expression meets less-than threshold for (+) from keyfile
-				elif [[ $currGtLt == "lt" ]]; then
-					if [[ ! $queryValue > $currCutoff ]]; then
-						(( noPosExp++ ))
+				elif [[ $currGtLt == "lt" ]]
+				then
+					if (( $(bc <<< "$queryValue <= $currCutoff") ))
+					then
+						(( noDecrExp++ ))
 					fi
 				fi
 			fi
@@ -66,10 +74,13 @@ do
 
 		# after all expression data is assessed for above/below cutoff, determine if sample is (+)
 		#   >> output is written into two files
-		if [[ ! $noPosExp < $threshold ]] ; then
-			echo "$(basename $sample)" $noPosExp >> $dirOut/list_CIMPpos
+		if (( ($noIncrExp + $noDecrExp) >= $threshold ))
+		then
+			printf "%b\t%b\t%b\t%b\n" "$(basename $sample)" $noIncrExp $noDecrExp $(($noIncrExp + $noDecrExp))\
+			>> $dirOut/list_CIMPpos
 		else
-			echo "$(basename $sample)" $noPosExp >> $dirOut/list_CIMPneg
+			printf "%b\t%b\t%b\t%b\n" "$(basename $sample)" $noIncrExp $noDecrExp $(($noIncrExp + $noDecrExp))\
+			>> $dirOut/list_CIMPneg
 		fi
 
 	done
