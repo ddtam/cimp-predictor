@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+# assess accuracy of predictor
+if [ "$1" == "-h" ] ; then
+	echo -e "Assess accuracy of predictor from output files
+	Usage: `basename $0` -i <dirIn> -s <soln>
+	<dirIn>: input directory containing 'list_CIMPpos' and 'list_CIMPneg'
+	<soln>: file containing solutions in the format 'sample \ [p OR n]' for pos and neg, respectively "
+	exit 0
+fi
+
+while [[ $# -gt 0 ]]
+do
+	case "$1" in
+		-i) dirIn="$2"; shift;;
+		-s) soln="$2"; shift;;
+	esac
+	shift
+done
+
+correct=0
+falsePos=0
+falseNeg=0
+
+# check for false positives
+cut -f1 $dirIn/list_CIMPpos | grep -f - $soln > .temp
+
+pos=$( awk '{if ($2=="p") print}' .temp | wc -l )
+neg=$( awk '{if ($2=="n") print}' .temp | wc -l )
+
+(( correct += pos ))
+(( falsePos += neg ))
+
+# check for false negatives
+cut -f1 $dirIn/list_CIMPneg | grep -f - $soln > .temp
+
+pos=$( awk '{if ($2=="p") print}' .temp | wc -l )
+neg=$( awk '{if ($2=="n") print}' .temp | wc -l )
+
+(( correct += neg ))
+(( falseNeg += pos ))
+
+total=$(($falsePos + $falseNeg + $correct))
+percentAcc=$( echo "$correct / $total * 100" | bc -l )
+
+# output results
+printf "RESULTS\nCorrect:\t%s\nFalse Positive:\t%s\nFalse Negative:\t%s\nPercent Accuracy:\t%s\n" \
+$correct $falsePos $falseNeg $percentAcc
+
+rm .temp
